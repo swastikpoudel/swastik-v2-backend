@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const path = require("path");
+
 require("dotenv").config();
 const Client = require("./models/Client");
 
@@ -21,6 +23,10 @@ mongoose
 app.get("/", (req, res) => {
   res.send("Backend + Database running 🚀");
 });
+app.get("/test", (req, res) => {
+  res.sendFile(path.join(__dirname, "test.html"));
+});
+
 app.post("/api/client", async (req, res) => {
   try {
     const { name, phone, message } = req.body;

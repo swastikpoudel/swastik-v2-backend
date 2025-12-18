@@ -1,28 +1,40 @@
 <!DOCTYPE html>
 <html>
-  <body>
-    <button onclick="send()">Send Test Data</button>
+<head>
+  <meta charset="UTF-8" />
+  <title>Backend Test</title>
+</head>
+<body>
 
-    <script>
-      function send() {
-        fetch("http://localhost:5000/api/client", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: "Test User",
-            phone: "9800000000",
-            message: "Hello from browser test",
-          }),
+  <h2>Test Backend → MongoDB</h2>
+
+  <button onclick="sendData()">Send Test Data</button>
+
+  <pre id="result"></pre>
+
+  <script>
+    function sendData() {
+      fetch("https://swastik-v2-backend.onrender.com/api/client", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: "HTML Test",
+          phone: "9811111111",
+          message: "Testing MongoDB save from HTML"
         })
-          .then((res) => res.json())
-          .then((data) => {
-            console.log(data);
-            alert("Data sent successfully!");
-          })
-          .catch((err) => console.error(err));
-      }
-    </script>
-  </body>
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("result").innerText =
+          JSON.stringify(data, null, 2);
+      })
+      .catch(err => {
+        document.getElementById("result").innerText = err.toString();
+      });
+    }
+  </script>
+
+</body>
 </html>
