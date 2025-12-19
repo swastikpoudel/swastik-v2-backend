@@ -50,9 +50,9 @@ app.post("/api/client", async (req, res) => {
 });
 // get all client messages (ADMIN - PROTECTED)
 app.get("/api/client", async (req, res) => {
-  const adminKey = req.headers["x-admin-secret"];
+  const adminSecret = req.headers["x-admin-secret"];
 
-  if (adminKey !== process.env.ADMIN_SECRET) {
+  if (!adminSecret || adminSecret !== process.env.ADMIN_SECRET) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
@@ -63,6 +63,7 @@ app.get("/api/client", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 
 
