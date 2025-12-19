@@ -50,23 +50,21 @@ app.post("/api/client", async (req, res) => {
 });
 // get all client messages (ADMIN - PROTECTED)
 app.get("/api/client", async (req, res) => {
-  const adminSecret = req.headers["x-admin-secret"];
-
-  if (!adminSecret || adminSecret !== process.env.ADMIN_SECRET) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-
   try {
+    const adminSecret =
+      req.headers["x-admin-secret"] ||
+      req.headers["X-Admin-Secret"];
+
+    if (adminSecret !== process.env.ADMIN_SECRET) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
     const clients = await Client.find().sort({ createdAt: -1 });
     res.json(clients);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
-
-
-
-
 
 const PORT = process.env.PORT || 5000;
 
