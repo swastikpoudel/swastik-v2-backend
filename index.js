@@ -4,6 +4,8 @@ const mongoose = require("mongoose");
 const path = require("path");
 
 require("dotenv").config();
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+
 const Client = require("./models/Client");
 
 
@@ -46,8 +48,14 @@ app.post("/api/client", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// get all client messages (ADMIN)
+// get all client messages (ADMIN - PROTECTED)
 app.get("/api/client", async (req, res) => {
+  const adminKey = req.headers["x-admin-secret"];
+
+  if (adminKey !== process.env.ADMIN_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   try {
     const clients = await Client.find().sort({ createdAt: -1 });
     res.json(clients);
@@ -55,6 +63,8 @@ app.get("/api/client", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
 
 
 const PORT = process.env.PORT || 5000;
