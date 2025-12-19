@@ -12,7 +12,14 @@ const Client = require("./models/Client");
 const app = express();
 
 // middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "X-Admin-Secret"],
+  })
+);
+
 app.use(express.json());
 
 // connect MongoDB
