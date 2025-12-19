@@ -46,6 +46,15 @@ app.post("/api/client", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// get all client messages (ADMIN)
+app.get("/api/client", async (req, res) => {
+  try {
+    const clients = await Client.find().sort({ createdAt: -1 });
+    res.json(clients);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
 const PORT = process.env.PORT || 5000;
