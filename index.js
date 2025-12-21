@@ -4,14 +4,12 @@ const mongoose = require("mongoose");
 const path = require("path");
 
 require("dotenv").config();
-const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
 const Client = require("./models/Client");
 
-
 const app = express();
 
-// middleware
+// ===== MIDDLEWARE =====
 app.use(
   cors({
     origin: "*",
@@ -22,7 +20,7 @@ app.use(
 
 app.use(express.json());
 
-// connect MongoDB
+// ===== MONGODB CONNECTION =====
 mongoose
   .connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 5000,
@@ -30,15 +28,16 @@ mongoose
   .then(() => console.log("MongoDB connected ✅"))
   .catch((err) => console.error("MongoDB error ❌", err));
 
-
-// test route
+// ===== TEST ROUTES =====
 app.get("/", (req, res) => {
   res.send("Backend + Database running 🚀");
 });
+
 app.get("/test", (req, res) => {
   res.sendFile(path.join(__dirname, "test.html"));
 });
 
+// ===== CREATE CLIENT MESSAGE =====
 app.post("/api/client", async (req, res) => {
   try {
     const { name, phone, message } = req.body;
@@ -55,12 +54,12 @@ app.post("/api/client", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// get all client messages (ADMIN - PROTECTED)
+
+// ===== GET ALL MESSAGES (ADMIN – PROTECTED) =====
 app.get("/api/client", async (req, res) => {
   try {
-    const adminSecret =
-      req.headers["x-admin-secret"] ||
-      req.headers["X-Admin-Secret"];
+    // ⚠️ HEADERS ARE ALWAYS LOWERCASE IN EXPRESS
+    const adminSecret = req.headers["x-admin-secret"];
 
     if (adminSecret !== process.env.ADMIN_SECRET) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -73,6 +72,7 @@ app.get("/api/client", async (req, res) => {
   }
 });
 
+// ===== START SERVER =====
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
