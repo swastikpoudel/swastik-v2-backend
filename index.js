@@ -10,13 +10,8 @@ const Client = require("./models/Client");
 const app = express();
 
 // ===== MIDDLEWARE =====
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type", "X-Admin-Secret"],
-  })
-);
+app.use(cors());
+
 
 app.use(express.json());
 
