@@ -32,31 +32,52 @@ mongoose
 app.get("/", (req, res) => res.send("Backend running 🚀"));
 app.get("/test", (req, res) => res.sendFile(path.join(__dirname, "test.html")));
 
-// POST: Create message with image
+// POST: Create message with image - FIXED VERSION
 app.post("/api/client", upload.single("image"), async (req, res) => {
   try {
     const { name, phone, message } = req.body;
+    
+    console.log('=== POST /api/client ===');
+    console.log('Received:', { name, phone, message });
+    console.log('File:', req.file ? `Yes (${req.file.size} bytes)` : 'No');
+
     if (!name || !phone || !message) {
-      return res.status(400).json({ error: "All fields required" });
+      return res.status(400).json({ error: "Name, phone and message are required" });
     }
 
-    const client = new Client({
-      name,
-      phone,
-      message,
-      image: req.file ? req.file.buffer : null,
-      imageType: req.file ? req.file.mimetype : null,
-    });
+    // Create client with image if exists
+    const clientData = {
+      name: name.trim(),
+      phone: phone.trim(),
+      message: message.trim(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
+    // Only add image if file exists
+    if (req.file) {
+      clientData.image = req.file.buffer;
+      clientData.imageType = req.file.mimetype;
+      console.log(`Image saved: ${req.file.buffer.length} bytes`);
+    }
+
+    const client = new Client(clientData);
     await client.save();
-    res.status(201).json({ success: true, message: "Message saved successfully" });
+    
+    console.log(`✅ Saved: ${client.name} (ID: ${client._id})`);
+    
+    res.status(201).json({ 
+      success: true, 
+      message: "Message saved successfully",
+      id: client._id 
+    });
   } catch (err) {
     console.error("POST /api/client error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET: Get all messages - WITH .lean() FOR CLEAN BASE64
+// GET: Get all messages - FIXED IMAGE CONVERSION
 app.get("/api/client", async (req, res) => {
   try {
     const adminSecret = req.headers["x-admin-secret"];
@@ -64,32 +85,76 @@ app.get("/api/client", async (req, res) => {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    // .lean() returns plain JS objects (no Mongoose wrapper)
-    const clients = await Client.find().sort({ createdAt: -1 }).lean();
+    // Get all clients
+    const clients = await Client.find()
+      .sort({ createdAt: -1 })
+      .lean();
 
-    // Manually convert Buffer to Base64 data URL
+    console.log(`Found ${clients.length} messages`);
+
+    // Convert images to Base64
     const formatted = clients.map((client) => {
-      if (client.image && client.imageType) {
-        // Handle both direct Buffer and { buffer: Buffer } from lean
-        const buffer = client.image.buffer || client.image;
-        if (Buffer.isBuffer(buffer)) {
-          const base64 = buffer.toString("base64");
-          client.image = `data:${client.imageType};base64,${base64}`;
-        } else {
-          client.image = null;
+      const result = {
+        _id: client._id,
+        name: client.name,
+        phone: client.phone,
+        message: client.message,
+        createdAt: client.createdAt,
+        updatedAt: client.updatedAt,
+        imageType: client.imageType || null
+      };
+
+      // Convert image buffer to Base64 if exists
+      if (client.image && Buffer.isBuffer(client.image)) {
+        try {
+          const base64 = client.image.toString('base64');
+          result.image = `data:${client.imageType || 'image/jpeg'};base64,${base64}`;
+          console.log(`✓ Image for ${client.name}: ${base64.length} chars`);
+        } catch (err) {
+          console.error(`✗ Image conversion error for ${client.name}:`, err.message);
+          result.image = null;
+        }
+      } else if (client.image && client.image.buffer && Buffer.isBuffer(client.image.buffer)) {
+        // Sometimes buffer is nested
+        try {
+          const base64 = client.image.buffer.toString('base64');
+          result.image = `data:${client.imageType || 'image/jpeg'};base64,${base64}`;
+          console.log(`✓ Image for ${client.name} (nested): ${base64.length} chars`);
+        } catch (err) {
+          console.error(`✗ Nested image error for ${client.name}:`, err.message);
+          result.image = null;
         }
       } else {
-        client.image = null;
+        result.image = null;
       }
-      return client;
+
+      return result;
     });
 
-    console.log(`Sent ${formatted.length} messages with clean image URLs`);
     res.json(formatted);
   } catch (err) {
     console.error("GET /api/client error:", err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// TEST endpoint for debugging
+app.post("/api/test-upload", upload.single("image"), (req, res) => {
+  console.log("=== TEST UPLOAD ===");
+  console.log("Body:", req.body);
+  console.log("File:", req.file ? {
+    name: req.file.originalname,
+    type: req.file.mimetype,
+    size: req.file.size,
+    bufferSize: req.file.buffer.length
+  } : "No file");
+  
+  res.json({
+    success: true,
+    message: "Test received",
+    body: req.body,
+    fileReceived: !!req.file
+  });
 });
 
 // Start Server

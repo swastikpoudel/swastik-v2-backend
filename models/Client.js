@@ -1,14 +1,40 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const clientSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    phone: { type: String, required: true },
-    message: { type: String, required: true },
-    image: { type: Buffer, default: null },
-    imageType: { type: String, default: null },
+const clientSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
   },
-  { timestamps: true }
-);
+  phone: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  message: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  image: {
+    type: Buffer,
+    required: false
+  },
+  imageType: {
+    type: String,
+    required: false
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+});
 
-module.exports = mongoose.model("Client", clientSchema);
+// Index for faster queries
+clientSchema.index({ createdAt: -1 });
+
+module.exports = mongoose.model('Client', clientSchema);
