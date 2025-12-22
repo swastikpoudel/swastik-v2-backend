@@ -15,13 +15,15 @@ const clientSchema = new mongoose.Schema(
       required: true,
     },
     image: {
-      type: Buffer,  // stores the image
+      type: Buffer,        // Stores raw image binary data
+      default: null,
     },
     imageType: {
-      type: String,  // e.g., "image/jpeg" – useful if you view later
+      type: String,        // e.g., "image/jpeg", "image/png", "image/webp"
+      default: null,
     },
   },
-  { timestamps: true }
+  { timestamps: true } // automatically adds createdAt and updatedAt
 );
 
 module.exports = mongoose.model("Client", clientSchema);
