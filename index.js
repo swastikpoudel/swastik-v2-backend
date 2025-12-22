@@ -1,11 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const multer = require("multer");     // ← ONLY NEW LINE
+const multer = require("multer");    // ← ONLY NEW LINE
 const path = require("path");
-
 require("dotenv").config();
-
+// added for image upload handling 
 const Client = require("./models/Client");
 
 const app = express();
