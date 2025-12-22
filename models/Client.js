@@ -14,6 +14,12 @@ const clientSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    image: {
+      type: Buffer,  // stores the image
+    },
+    imageType: {
+      type: String,  // e.g., "image/jpeg" – useful if you view later
+    },
   },
   { timestamps: true }
 );
