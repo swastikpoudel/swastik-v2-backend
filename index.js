@@ -18,6 +18,14 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    // Accept only images
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
 });
 
 // ========== MONGO DB CONNECTION ==========
@@ -108,6 +116,19 @@ app.get("/test", (req, res) => res.send("Test route working"));
 // ========== CONTACT FORM ==========
 app.post("/api/client", upload.single("image"), async (req, res) => {
   try {
+    console.log('📦 Received form submission');
+    console.log('Body:', req.body);
+    console.log('File received:', req.file ? 'Yes' : 'No');
+    
+    if (req.file) {
+      console.log('📸 File details:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferLength: req.file.buffer?.length || 0
+      });
+    }
+    
     const { name, phone, message } = req.body;
     
     if (!name || !phone || !message) {
@@ -122,20 +143,25 @@ app.post("/api/client", upload.single("image"), async (req, res) => {
       updatedAt: new Date()
     };
 
-    if (req.file) {
+    if (req.file && req.file.buffer) {
       clientData.image = req.file.buffer;
       clientData.imageType = req.file.mimetype;
+      console.log('✅ Image saved to database');
+    } else {
+      console.log('ℹ️ No image attached');
     }
 
     const client = new Client(clientData);
     await client.save();
+    
+    console.log('✅ Message saved successfully');
     
     res.status(201).json({ 
       success: true, 
       message: "Message sent successfully!" 
     });
   } catch (err) {
-    console.error("Save error:", err);
+    console.error("❌ Save error:", err);
     res.status(500).json({ error: "Failed to save message" });
   }
 });
@@ -143,7 +169,11 @@ app.post("/api/client", upload.single("image"), async (req, res) => {
 // ========== GET MESSAGES (PROTECTED) ==========
 app.get("/api/client", checkAdmin, async (req, res) => {
   try {
+    console.log('📥 Admin fetching messages');
+    
     const clients = await Client.find().sort({ createdAt: -1 }).lean();
+    
+    console.log(`📊 Found ${clients.length} messages`);
     
     const formatted = clients.map((client) => {
       const result = {
@@ -156,11 +186,23 @@ app.get("/api/client", checkAdmin, async (req, res) => {
         image: null
       };
 
-      if (client.image && Buffer.isBuffer(client.image)) {
+      // ✅ FIX: Check both image buffer and imageType
+      if (client.image && Buffer.isBuffer(client.image) && client.imageType) {
         try {
           const base64 = client.image.toString('base64');
-          result.image = `data:${client.imageType || 'image/jpeg'};base64,${base64}`;
+          // ✅ Use the stored MIME type
+          result.image = `data:${client.imageType};base64,${base64}`;
         } catch (err) {
+          console.error('❌ Error converting image to base64:', err);
+          result.image = null;
+        }
+      } else if (client.image && Buffer.isBuffer(client.image)) {
+        // If image exists but no imageType, use default
+        try {
+          const base64 = client.image.toString('base64');
+          result.image = `data:image/jpeg;base64,${base64}`;
+        } catch (err) {
+          console.error('❌ Error converting image:', err);
           result.image = null;
         }
       }
@@ -168,10 +210,40 @@ app.get("/api/client", checkAdmin, async (req, res) => {
       return result;
     });
 
+    console.log(`🖼️ Images converted: ${formatted.filter(c => c.image).length}`);
+    
     res.json(formatted);
   } catch (err) {
-    console.error("Get messages error:", err);
+    console.error("❌ Get messages error:", err);
     res.status(500).json({ error: "Failed to load messages" });
+  }
+});
+
+// ========== SERVE SINGLE IMAGE (Optional) ==========
+app.get("/api/client/:id/image", checkAdmin, async (req, res) => {
+  try {
+    const client = await Client.findById(req.params.id);
+    
+    if (!client || !client.image) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+    
+    res.set('Content-Type', client.imageType || 'image/jpeg');
+    res.send(client.image);
+  } catch (err) {
+    console.error("Image serve error:", err);
+    res.status(500).json({ error: "Failed to load image" });
+  }
+});
+
+// ========== DELETE MESSAGE (Optional) ==========
+app.delete("/api/client/:id", checkAdmin, async (req, res) => {
+  try {
+    await Client.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: "Message deleted" });
+  } catch (err) {
+    console.error("Delete error:", err);
+    res.status(500).json({ error: "Failed to delete message" });
   }
 });
 
@@ -181,4 +253,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔐 Admin login: /api/admin/login`);
   console.log(`📨 Contact form: /api/client`);
+  console.log(`📊 Admin messages: /api/client (requires session)`);
 });
