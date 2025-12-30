@@ -34,10 +34,9 @@ const clientSchema = new mongoose.Schema({
   }
 });
 
-// Update timestamp before saving
-clientSchema.pre('save', function(next) {
+// ✅ FIXED: Remove next parameter for sync operations
+clientSchema.pre('save', function() {
   this.updatedAt = Date.now();
-  next();
 });
 
 module.exports = mongoose.model('Client', clientSchema);
