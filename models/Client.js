@@ -34,7 +34,10 @@ const clientSchema = new mongoose.Schema({
   }
 });
 
-// Index for faster queries
-clientSchema.index({ createdAt: -1 });
+// Update timestamp before saving
+clientSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
+});
 
 module.exports = mongoose.model('Client', clientSchema);
