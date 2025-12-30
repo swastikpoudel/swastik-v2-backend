@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const multer = require("multer");
-const path = require("path");
 require("dotenv").config();
 
 const Client = require("./models/Client");
@@ -17,15 +16,7 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 // ========== MULTER FOR IMAGES ==========
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    // Accept only images
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
+  limits: { fileSize: 15 * 1024 * 1024 }
 });
 
 // ========== MONGO DB CONNECTION ==========
@@ -44,16 +35,12 @@ app.post("/api/admin/login", async (req, res) => {
     
     console.log('🔐 Login attempt by:', username);
     
-    // Get credentials from .env
     const correctUsername = process.env.ADMIN_USERNAME;
     const correctPassword = process.env.ADMIN_PASSWORD;
     
-    // Check credentials
     if (username === correctUsername && password === correctPassword) {
-      // Create session ID
       const sessionId = Date.now().toString(36) + Math.random().toString(36).substr(2);
       
-      // Store session (24 hours)
       adminSessions[sessionId] = {
         loggedInAt: new Date(),
         expiresAt: Date.now() + (24 * 60 * 60 * 1000)
@@ -95,7 +82,6 @@ const checkAdmin = (req, res, next) => {
     return res.status(401).json({ error: "Session expired. Login again" });
   }
   
-  // Update expiry time
   session.expiresAt = Date.now() + (24 * 60 * 60 * 1000);
   next();
 };
@@ -116,18 +102,7 @@ app.get("/test", (req, res) => res.send("Test route working"));
 // ========== CONTACT FORM ==========
 app.post("/api/client", upload.single("image"), async (req, res) => {
   try {
-    console.log('📦 Received form submission');
-    console.log('Body:', req.body);
-    console.log('File received:', req.file ? 'Yes' : 'No');
-    
-    if (req.file) {
-      console.log('📸 File details:', {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        bufferLength: req.file.buffer?.length || 0
-      });
-    }
+    console.log('📦 FORM SUBMISSION RECEIVED');
     
     const { name, phone, message } = req.body;
     
@@ -138,112 +113,114 @@ app.post("/api/client", upload.single("image"), async (req, res) => {
     const clientData = {
       name: name.trim(),
       phone: phone.trim(),
-      message: message.trim(),
-      createdAt: new Date(),
-      updatedAt: new Date()
+      message: message.trim()
     };
 
+    // SAVE IMAGE IF EXISTS
     if (req.file && req.file.buffer) {
+      console.log('📸 IMAGE FOUND - Size:', req.file.size, 'bytes');
       clientData.image = req.file.buffer;
       clientData.imageType = req.file.mimetype;
-      console.log('✅ Image saved to database');
     } else {
-      console.log('ℹ️ No image attached');
+      console.log('ℹ️ NO IMAGE ATTACHED');
     }
 
     const client = new Client(clientData);
     await client.save();
     
-    console.log('✅ Message saved successfully');
+    console.log('✅ MESSAGE SAVED TO DATABASE');
     
     res.status(201).json({ 
       success: true, 
       message: "Message sent successfully!" 
     });
   } catch (err) {
-    console.error("❌ Save error:", err);
+    console.error("❌ SAVE ERROR:", err);
     res.status(500).json({ error: "Failed to save message" });
   }
 });
 
-// ========== GET MESSAGES (PROTECTED) ==========
+// ========== GET MESSAGES (FIXED VERSION) ==========
 app.get("/api/client", checkAdmin, async (req, res) => {
   try {
-    console.log('📥 Admin fetching messages');
+    console.log('📥 FETCHING MESSAGES FROM DB');
     
-    const clients = await Client.find().sort({ createdAt: -1 }).lean();
+    // FIX: Don't use .lean() - get full documents
+    const clients = await Client.find().sort({ createdAt: -1 });
     
-    console.log(`📊 Found ${clients.length} messages`);
+    console.log(`📊 FOUND ${clients.length} MESSAGES`);
     
-    const formatted = clients.map((client) => {
-      const result = {
+    const messagesWithImages = [];
+    
+    for (const client of clients) {
+      const messageData = {
         _id: client._id,
         name: client.name,
         phone: client.phone,
         message: client.message,
         createdAt: client.createdAt,
-        imageType: client.imageType || null,
+        hasImage: false,
         image: null
       };
-
-      // ✅ FIX: Check both image buffer and imageType
-      if (client.image && Buffer.isBuffer(client.image) && client.imageType) {
+      
+      // CHECK IF IMAGE EXISTS IN DATABASE
+      if (client.image && client.imageType) {
+        console.log(`🖼️ Processing image for ${client.name}`);
+        console.log(`   - Image type: ${client.imageType}`);
+        console.log(`   - Buffer size: ${client.image.length} bytes`);
+        console.log(`   - Is Buffer?: ${Buffer.isBuffer(client.image)}`);
+        
         try {
-          const base64 = client.image.toString('base64');
-          // ✅ Use the stored MIME type
-          result.image = `data:${client.imageType};base64,${base64}`;
-        } catch (err) {
-          console.error('❌ Error converting image to base64:', err);
-          result.image = null;
+          // Convert buffer to base64
+          const base64Image = client.image.toString('base64');
+          messageData.image = `data:${client.imageType};base64,${base64Image}`;
+          messageData.hasImage = true;
+          console.log(`   ✅ Image converted successfully`);
+        } catch (error) {
+          console.log(`   ❌ Error converting: ${error.message}`);
+          messageData.image = null;
         }
-      } else if (client.image && Buffer.isBuffer(client.image)) {
-        // If image exists but no imageType, use default
-        try {
-          const base64 = client.image.toString('base64');
-          result.image = `data:image/jpeg;base64,${base64}`;
-        } catch (err) {
-          console.error('❌ Error converting image:', err);
-          result.image = null;
-        }
+      } else {
+        console.log(`📭 No image for ${client.name}`);
       }
-
-      return result;
-    });
-
-    console.log(`🖼️ Images converted: ${formatted.filter(c => c.image).length}`);
+      
+      messagesWithImages.push(messageData);
+    }
     
-    res.json(formatted);
+    const imageCount = messagesWithImages.filter(m => m.hasImage).length;
+    console.log(`🎯 FINAL: ${imageCount} images converted out of ${clients.length} messages`);
+    
+    res.json(messagesWithImages);
+    
   } catch (err) {
-    console.error("❌ Get messages error:", err);
+    console.error("❌ FETCH ERROR:", err);
     res.status(500).json({ error: "Failed to load messages" });
   }
 });
 
-// ========== SERVE SINGLE IMAGE (Optional) ==========
-app.get("/api/client/:id/image", checkAdmin, async (req, res) => {
+// ========== DEBUG ROUTE ==========
+app.get("/api/debug", async (req, res) => {
   try {
-    const client = await Client.findById(req.params.id);
+    const clients = await Client.find().limit(3);
     
-    if (!client || !client.image) {
-      return res.status(404).json({ error: "Image not found" });
-    }
+    const debugInfo = clients.map(client => ({
+      id: client._id,
+      name: client.name,
+      hasImageField: !!client.image,
+      hasImageType: !!client.imageType,
+      imageIsBuffer: Buffer.isBuffer(client.image),
+      imageLength: client.image ? client.image.length : 0,
+      imageType: client.imageType,
+      allFields: Object.keys(client.toObject())
+    }));
     
-    res.set('Content-Type', client.imageType || 'image/jpeg');
-    res.send(client.image);
+    res.json({
+      totalMessages: await Client.countDocuments(),
+      sampleData: debugInfo,
+      message: "Debug info - check if images are stored"
+    });
   } catch (err) {
-    console.error("Image serve error:", err);
-    res.status(500).json({ error: "Failed to load image" });
-  }
-});
-
-// ========== DELETE MESSAGE (Optional) ==========
-app.delete("/api/client/:id", checkAdmin, async (req, res) => {
-  try {
-    await Client.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: "Message deleted" });
-  } catch (err) {
-    console.error("Delete error:", err);
-    res.status(500).json({ error: "Failed to delete message" });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -251,7 +228,7 @@ app.delete("/api/client/:id", checkAdmin, async (req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📨 Form endpoint: /api/client`);
   console.log(`🔐 Admin login: /api/admin/login`);
-  console.log(`📨 Contact form: /api/client`);
-  console.log(`📊 Admin messages: /api/client (requires session)`);
+  console.log(`🐛 Debug route: /api/debug`);
 });
